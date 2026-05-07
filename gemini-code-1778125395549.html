@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Santas Alitas - Inteligencia de Mercado</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        body, html, #map { margin: 0; height: 100%; width: 100%; background: #ffffff; }
+        .legend { background: white; padding: 10px; line-height: 18px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); font-family: sans-serif; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.8; }
+        #loader { position: absolute; top: 10px; left: 50px; z-index: 1000; background: white; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div id="loader">Cargando datos de QGIS...</div>
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+    const map = L.map('map').setView([19.43, -99.13], 11);
+
+    // Mapa base claro
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // 1. Configuración de colores para NSE C
+    function getStyle(feature) {
+        const nse = feature.properties.NIVEL; // Nombre exacto de tu columna en t1.geojson
+        let color = "transparent";
+        let fillOp = 0;
+
+        if (nse === 'C+') { color = "#1a9850"; fillOp = 0.6; }
+        else if (nse === 'C') { color = "#91cf60"; fillOp = 0.6; }
+        else if (nse === 'C-') { color = "#d9ef8b"; fillOp = 0.6; }
+
+        return {
+            fillColor: color,
+            weight: 0.5,
+            opacity: 1,
+            color: 'white',
+            fillOpacity: fillOp
+        };
+    }
+
+    // 2. Cargar el archivo t1.geojson (Debe estar en la misma carpeta en GitHub)
+    fetch('t1.geojson')
+        .then(response => response.json())
+        .then(data => {
+            const layer = L.geoJSON(data, {
+                filter: function(f) {
+                    // Solo mostramos los niveles C
+                    return ['C+', 'C', 'C-'].includes(f.properties.NIVEL);
+                },
+                style: getStyle,
+                onEachFeature: function(f, l) {
+                    l.bindPopup(`<b>NSE:</b> ${f.properties.NIVEL}<br><b>Municipio:</b> ${f.properties.NOM_MUN}`);
+                }
+            }).addTo(map);
+            
+            map.fitBounds(layer.getBounds());
+            document.getElementById('loader').style.display = 'none';
+        })
+        .catch(err => {
+            document.getElementById('loader').innerHTML = "Error al cargar t1.geojson";
+            console.error(err);
+        });
+
+    // 3. Sucursales Santas Alitas
+    const sucursales = [
+        {n: "Hamburgo", p: [19.4244, -99.1681]},
+        {n: "Centro", p: [19.4330, -99.1439]},
+        {n: "Coapa", p: [19.2976, -99.1200]}
+    ];
+
+    sucursales.forEach(s => {
+        L.circle(s.p, {radius: 1500, color: '#E24B4A', fillOpacity: 0.15}).addTo(map);
+        L.marker(s.p).bindPopup(s.n).addTo(map);
+    });
+
+    // 4. Leyenda
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = '<b>Segmento NSE C</b><br>' +
+            '<i style="background: #1a9850"></i> C+<br>' +
+            '<i style="background: #91cf60"></i> C<br>' +
+            '<i style="background: #d9ef8b"></i> C-';
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
+</body>
+</html>
