@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Capas DWD</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            max-width: 250px;
+        }
+        .legend {
+            line-height: 18px;
+            color: #555;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="info-panel">
+    <h4>Mapa de Capas</h4>
+    <p>Coloreado por: <strong>NOM_MUN</strong></p>
+    <button onclick="resetView()" style="width:100%; padding:8px; cursor:pointer; background:#007bff; color:white; border:none; border-radius:4px;">Regresar al Centro</button>
+</div>
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // 1. Inicializar mapa
+    var map = L.map('map').setView([19.4326, -99.1332], 10); // Vista inicial aproximada (CDMX)
+    var geoLayer;
+
+    // 2. Capa base
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }).addTo(map);
+
+    // 3. Función de colores basada en una propiedad de texto (NOM_MUN)
+    // Genera colores distintos para municipios diferentes
+    function stringToColor(str) {
+        var hash = 0;
+        for (var i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        var color = '#';
+        for (var i = 0; i < 3; i++) {
+            var value = (hash >> (i * 8)) & 0xFF;
+            color += ('00' + value.toString(16)).substr(-2);
+        }
+        return color;
+    }
+
+    // 4. Estilo de la capa
+    function style(feature) {
+        return {
+            fillColor: stringToColor(feature.properties.NOM_MUN || "Default"),
+            weight: 1.5,
+            opacity: 1,
+            color: 'white',
+            fillOpacity: 0.6
+        };
+    }
+
+    // 5. Cargar datos
+    fetch('dwd.geojson')
+        .then(response => {
+            if (!response.ok) throw new Error("No se pudo cargar el archivo dwd.geojson");
+            return response.json();
+        })
+        .then(data => {
+            geoLayer = L.geoJSON(data, {
+                style: style,
+                onEachFeature: function (feature, layer) {
+                    var popup = "<strong>Información:</strong><br>";
+                    popup += "<b>Municipio:</b> " + feature.properties.NOM_MUN + "<br>";
+                    popup += "<b>Entidad:</b> " + feature.properties.NOM_ENT + "<br>";
+                    popup += "<b>AGEB:</b> " + feature.properties.AGEB;
+                    layer.bindPopup(popup);
+                    
+                    layer.on({
+                        mouseover: function(e) { e.target.setStyle({ fillOpacity: 0.9, weight: 3 }); },
+                        mouseout: function(e) { geoLayer.resetStyle(e.target); }
+                    });
+                }
+            }).addTo(map);
+
+            // Ajustar vista automáticamente al cargar (Regresar al centro)
+            resetView();
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error: Asegúrate de que 'dwd.geojson' esté en la misma carpeta y usa Live Server.");
+        });
+
+    function resetView() {
+        if (geoLayer) {
+            map.fitBounds(geoLayer.getBounds());
+        }
+    }
+</script>
+
+</body>
+</html>
