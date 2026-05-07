@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Santas Alitas - Mapa de Inteligencia Territorial</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        body, html, #map { margin: 0; height: 100%; width: 100%; background: #ffffff; }
+        .legend { background: white; padding: 12px; line-height: 18px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 13px; }
+        .legend i { width: 16px; height: 16px; float: left; margin-right: 8px; opacity: 0.8; border-radius: 2px; }
+        #loader { position: absolute; top: 10px; left: 50px; z-index: 1000; background: white; padding: 8px 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-family: sans-serif; }
+    </style>
+</head>
+<body>
+
+<div id="loader">Cargando capas de QGIS...</div>
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+    const map = L.map('map').setView([19.43, -99.13], 11);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // --- 1. LISTA COMPLETA DE SUCURSALES (DEL HTML ORIGINAL) ---
+    const LOCATIONS = [
+        { name: "Santas Alitas Hamburgo", lat: 19.4244499, lng: -99.1681681 },
+        { name: "Santas Alitas Santa María la Ribera", lat: 19.4474527, lng: -99.1612048 },
+        { name: "Santas Alitas Lorenzo Boturini", lat: 19.416685, lng: -99.1174889 },
+        { name: "Santas Alitas Centro", lat: 19.4330151, lng: -99.1439799 },
+        { name: "Santas Alitas Amores", lat: 19.3968415, lng: -99.1630973 },
+        { name: "Santas Alitas Narvarte", lat: 19.3751033, lng: -99.1544583 },
+        { name: "Santas Alitas Coapa", lat: 19.2976214, lng: -99.1200000 }, // Corregida
+        { name: "Santas Alitas Clavería", lat: 19.4650567, lng: -99.1866373 },
+        { name: "Santas Alitas Nueva Santa María", lat: 19.4632014, lng: -99.1706692 },
+        { name: "Santas Alitas Lindavista", lat: 19.4931326, lng: -99.1245781 },
+        { name: "Santas Alitas Tepeyac", lat: 19.4837588, lng: -99.1194206 },
+        { name: "Santas Alitas Bosques", lat: 19.3961125, lng: -99.2458327 },
+        { name: "Santas Alitas Interlomas", lat: 19.3978432, lng: -99.2745341 },
+        { name: "Santas Alitas Satélite", lat: 19.5105234, lng: -99.2345678 },
+        { name: "Santas Alitas Mundo E", lat: 19.5278456, lng: -99.2234567 },
+        { name: "Santas Alitas Atizapán", lat: 19.5567891, lng: -99.2567891 }
+    ];
+
+    // Pintar Sucursales y Radios
+    const layerSucursales = L.layerGroup().addTo(map);
+    LOCATIONS.forEach(loc => {
+        L.circle([loc.lat, loc.lng], {
+            radius: 1500,
+            color: '#E24B4A',
+            fillColor: '#E24B4A',
+            fillOpacity: 0.15,
+            weight: 1
+        }).addTo(layerSucursales);
+
+        L.marker([loc.lat, loc.lng])
+            .bindPopup(`<b>${loc.name}</b>`)
+            .addTo(layerSucursales);
+    });
+
+    // --- 2. CARGA DE CAPA QGIS (NSE) ---
+    function getStyle(feature) {
+        const nse = feature.properties.NIVEL; 
+        const colors = { 'C+': '#1a9850', 'C': '#91cf60', 'C-': '#d9ef8b' };
+        const color = colors[nse] || 'transparent';
+
+        return {
+            fillColor: color,
+            weight: 0.5,
+            opacity: 1,
+            color: 'white',
+            fillOpacity: color === 'transparent' ? 0 : 0.6
+        };
+    }
+
+    fetch('t1.geojson')
+        .then(res => res.json())
+        .then(data => {
+            const nseLayer = L.geoJSON(data, {
+                filter: f => ['C+', 'C', 'C-'].includes(f.properties.NIVEL),
+                style: getStyle,
+                onEachFeature: (f, l) => {
+                    l.bindPopup(`<b>NSE:</b> ${f.properties.NIVEL}<br><b>Municipio:</b> ${f.properties.NOM_MUN}`);
+                }
+            }).addTo(map);
+            
+            document.getElementById('loader').style.display = 'none';
+        })
+        .catch(err => {
+            document.getElementById('loader').innerHTML = "Error cargando t1.geojson";
+        });
+
+    // --- 3. LEYENDA ---
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = () => {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = '<b>NSE Objetivo</b><br>' +
+            '<i style="background: #1a9850"></i> C+<br>' +
+            '<i style="background: #91cf60"></i> C<br>' +
+            '<i style="background: #d9ef8b"></i> C-';
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
+</body>
+</html>
